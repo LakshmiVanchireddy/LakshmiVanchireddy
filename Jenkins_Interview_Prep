@@ -1,0 +1,261 @@
+1.  How do you execute parallel jobs in Jenkins?
+=>  In Jenkins, you can execute parallel jobs using Pipeline scripts (Declarative or Scripted Pipelines).
+In declarative pipeline , you can define parallel jobs using parallel block 
+pipeline {
+    agent any
+    stages {
+        stage('Parallel Execution') {
+            parallel {
+                stage('Run Unit Tests') {
+                    steps {
+                        echo "Running Unit Tests..."
+                        sh 'pytest tests/unit'
+                    }
+                }
+                stage('Run Integration Tests') {
+                    steps {
+                        echo "Running Integration Tests..."
+                        sh 'pytest tests/integration'
+                    }
+                }
+                stage('Run Security Scan') {
+                    steps {
+                        echo "Running Security Scan..."
+                        sh 'bandit -r .'
+                    }
+                }
+            }
+        }
+    }
+}
+The parallel block allows different jobs to run at the same time.
+Each stage inside parallel runs independently.
+If one stage fails, Jenkins stops execution unless failFast false is set.
+
+2. Using scripted pipeline (Parallel function)
+For more flexibility, you can use parallel in a Scripted Pipeline.
+node {
+    stage('Parallel Jobs') {
+        def jobs = [:]
+
+        jobs['Build Frontend'] = {
+            stage('Frontend Build') {
+                sh 'npm run build'
+            }
+        }
+
+        jobs['Build Backend'] = {
+            stage('Backend Build') {
+                sh 'mvn clean package'
+            }
+        }
+
+        jobs['Run Linter'] = {
+            stage('Lint Code') {
+                sh 'eslint .'
+            }
+        }
+
+        parallel jobs
+    }
+}
+parallel jobs allows defining multiple independent jobs.
+Each job runs inside its own closure {}.
+Jobs execute at the same time, improving speed.
+
+3. Running parallel jobs on multiple nodes 
+Jobs run on separate nodes (linux-agent and windows-agent).
+Useful when testing on multiple platforms.
+
+pipeline {
+    agent none  // No default agent, define per stage
+    stages {
+        stage('Parallel Execution on Multiple Agents') {
+            parallel {
+                stage('Build on Linux') {
+                    agent { label 'linux-agent' }
+                    steps {
+                        sh 'make build'
+                    }
+                }
+                stage('Build on Windows') {
+                    agent { label 'windows-agent' }
+                    steps {
+                        bat 'build.exe'
+                    }
+                }
+            }
+        }
+    }
+}
+4. Handling Failures in Parallel Jobs
+By default, if one parallel stage fails, all other stages stop.
+To continue other jobs, use failFast false.
+
+Example 
+pipeline {
+    agent any
+    stages {
+        stage('Parallel Execution') {
+            failFast false
+            parallel {
+                stage('Task 1') {
+                    steps {
+                        sh 'exit 1'  // This will fail
+                    }
+                }
+                stage('Task 2') {
+                    steps {
+                        sh 'echo "Task 2 Running..."'
+                    }
+                }
+            }
+        }
+    }
+}
+
+5.Using Matrix to Execute Parallel Jobs Dynamically
+If you need to run a job with different configurations (OS, versions, etc.), use a matrix.
+
+Example: running test on multiple python versions 
+
+pipeline {
+    agent any
+    stages {
+        stage('Test in Parallel') {
+            matrix {
+                axes {
+                    axis {
+                        name 'PYTHON_VERSION'
+                        values '3.7', '3.8', '3.9'
+                    }
+                }
+                stages {
+                    stage('Run Tests') {
+                        steps {
+                            sh 'python${PYTHON_VERSION} -m pytest tests/'
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+Real-World Jenkins Pipeline Example with Python Automation 🚀
+Let's create a Jenkins Pipeline that:
+✅ Builds a Python application
+✅ Runs unit tests using pytest
+✅ Performs code linting with flake8
+✅ Builds a Docker image and pushes it to Docker Hub
+✅ Deploys the container to a Kubernetes cluster
+
+Jenkins file (declative pipeline)
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "myrepo/myapp:${BUILD_NUMBER}"
+        DOCKER_CREDENTIALS = "docker-hub-credentials"
+        KUBE_CONFIG = credentials('kubeconfig-credentials')
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git 'https://github.com/myrepo/python-app.git'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'pip install -r requirements.txt'
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                sh 'pytest --junitxml=test-results.xml'
+            }
+            post {
+                always {
+                    junit 'test-results.xml'
+                }
+            }
+        }
+
+        stage('Code Linting') {
+            steps {
+                sh 'flake8 --max-line-length=120 .'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh "docker build -t $DOCKER_IMAGE ."
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withDockerRegistry([credentialsId: DOCKER_CREDENTIALS, url: '']) {
+                    sh "docker push $DOCKER_IMAGE"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
+                    sh '''
+                    kubectl set image deployment/python-app python-app=$DOCKER_IMAGE
+                    kubectl rollout status deployment/python-app
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "🎉 Deployment successful!"
+        }
+        failure {
+            echo "🚨 Deployment failed!"
+        }
+    }
+}
+
+2️⃣ Breakdown of the Pipeline
+🔹 Checkout Code → Clones the GitHub repo.
+🔹 Install Dependencies → Installs required Python packages.
+🔹 Run Unit Tests → Runs pytest and publishes results in Jenkins.
+🔹 Code Linting → Checks code quality using flake8.
+🔹 Build Docker Image → Builds a Docker container for the app.
+🔹 Push to Docker Hub → Pushes the image to Docker Hub.
+🔹 Deploy to Kubernetes → Updates the deployment with the new image.
+
+3️⃣ Prerequisites
+✅ Jenkins Plugins Required:
+
+Pipeline
+Docker Pipeline
+Kubernetes CLI
+✅ Jenkins Credentials Needed:
+
+Docker Hub (docker-hub-credentials) → For pushing Docker images
+Kubeconfig (kubeconfig-credentials) → For deploying to Kubernetes
+✅ Infrastructure Requirements:
+
+Jenkins installed
+Docker installed on Jenkins agent
+Kubernetes cluster set up
+
+4️⃣ How to Run This Pipeline
+1️⃣ Add the Jenkinsfile to your repo.
+2️⃣ Configure Jenkins to pull from your repo.
+3️⃣ Run the pipeline and monitor logs in Jenkins Console Output.
+4️⃣ If successful, the Python app is deployed in Kubernetes! 🚀
+
+
+
