@@ -18,7 +18,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/LakshmiVanchireddy/LakshmiVanchireddy/blob/main/Jenkinsfile'  // 🔁 Replace with your repo
+                        url: 'https://github.com/LakshmiVanchireddy/LakshmiVanchireddy/Jenkinsfile'  // 🔁 Replace with your repo
                     ]]
                 ])
             }
